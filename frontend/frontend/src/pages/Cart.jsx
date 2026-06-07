@@ -1,94 +1,170 @@
-import React, { useContext } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { CartContext } from '../context/CartContext';
-import { Trash2, Plus, Minus, ShoppingBag } from 'lucide-react';
+import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { placeOrder } from '../api';
 
-const Cart = () => {
-  const { cartItems, removeFromCart, updateQuantity } = useContext(CartContext);
+const Cart = ({ cartItems, clearCart, isAuthenticated }) => {
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [success, setSuccess] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState('Credit Card');
+  const [customerName, setCustomerName] = useState('');
+  const [shippingAddress, setShippingAddress] = useState('');
+  const [trackingNumber, setTrackingNumber] = useState(null);
   const navigate = useNavigate();
 
-  const total = cartItems.reduce((acc, item) => acc + item.price * item.quantity, 0);
+  const total = cartItems.reduce((sum, item) => sum + item.price, 0);
+  const shipping = total > 5000 ? 0 : 500;
+  const totalAmount = total + shipping;
 
-  if (cartItems.length === 0) {
+  const handleCheckout = async () => {
+    if (!isAuthenticated) {
+      navigate('/auth');
+      return;
+    }
+
+    if (!customerName.trim() || !shippingAddress.trim()) {
+      alert('Please enter your name and shipping address before checkout.');
+      return;
+    }
+
+    setIsProcessing(true);
+    try {
+      const orderData = {
+        total_amount: totalAmount,
+        items: cartItems,
+        payment_method: paymentMethod,
+        customer_name: customerName,
+        shipping_address: shippingAddress
+      };
+
+      const response = await placeOrder(orderData);
+      setTrackingNumber(response.tracking_number || null);
+      setSuccess(true);
+      clearCart();
+    } catch (error) {
+      console.error("Checkout failed:", error);
+      const message = error.response?.data?.msg
+        || error.response?.data?.error
+        || error.message
+        || "Checkout failed. Please try again.";
+      if (error.response?.status === 401) {
+        alert('Your session expired. Please log in again and retry checkout.');
+        navigate('/auth');
+        return;
+      }
+      alert(message);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  if (success) {
     return (
-      <div className="text-center py-20 bg-white rounded-xl shadow-sm border border-gray-100">
-        <ShoppingBag size={64} className="mx-auto text-gray-300 mb-4" />
-        <h2 className="text-2xl font-bold text-gray-800 mb-2">Your cart is empty</h2>
-        <p className="text-gray-500 mb-8">Looks like you haven't added anything to your cart yet.</p>
-        <Link to="/" className="btn-primary px-8 py-3">Start Shopping</Link>
+      <div className="container" style={{ textAlign: 'center', padding: '120px 24px' }}>
+        <h1 style={{ color: 'var(--success)', marginBottom: '16px' }}>Order Placed Successfully!</h1>
+        <p style={{ color: 'var(--text-secondary)', marginBottom: '12px' }}>Thank you for shopping with STYLE.</p>
+        {customerName && <p style={{ color: 'var(--text-secondary)', marginBottom: '12px' }}>Order will be delivered to <strong>{customerName}</strong> at <strong>{shippingAddress}</strong>.</p>}
+        {trackingNumber && <p style={{ color: 'var(--text-secondary)', marginBottom: '24px' }}>Your tracking number is <strong>{trackingNumber}</strong>.</p>}
+        <button className="btn btn-primary" onClick={() => navigate('/orders')}>View Orders</button>
       </div>
     );
   }
 
   return (
-    <div className="max-w-6xl mx-auto">
-      <h1 className="text-3xl font-bold mb-8">Your Shopping Cart</h1>
-      
-      <div className="flex flex-col lg:flex-row gap-8">
-        <div className="lg:w-2/3">
-          <div className="space-y-4">
-            {cartItems.map((item) => (
-              <div key={item._id} className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex items-center gap-4">
-                <img src={item.image} alt={item.name} className="w-24 h-24 object-cover rounded-lg" />
-                <div className="flex-grow">
-                  <h3 className="font-bold text-lg">{item.name}</h3>
-                  <p className="text-gray-500 text-sm">{item.category}</p>
-                </div>
-                <div className="flex items-center border rounded-lg bg-gray-50">
-                  <button 
-                    onClick={() => updateQuantity(item._id, Math.max(1, item.quantity - 1))}
-                    className="p-2 hover:text-primary transition"
-                  >
-                    <Minus size={16} />
-                  </button>
-                  <span className="px-4 font-bold">{item.quantity}</span>
-                  <button 
-                    onClick={() => updateQuantity(item._id, item.quantity + 1)}
-                    className="p-2 hover:text-primary transition"
-                  >
-                    <Plus size={16} />
-                  </button>
-                </div>
-                <div className="text-right min-w-[100px]">
-                  <p className="font-bold text-lg">${(item.price * item.quantity).toFixed(2)}</p>
-                  <button 
-                    onClick={() => removeFromCart(item._id)}
-                    className="text-red-500 hover:text-red-700 transition"
-                  >
-                    <Trash2 size={18} />
-                  </button>
+    <div className="container cart-page">
+      <div className="page-header">
+        <h1>Your Cart</h1>
+      </div>
+
+      {cartItems.length === 0 ? (
+        <div style={{ textAlign: 'center', padding: '80px', color: 'var(--text-secondary)' }}>
+          <p>Your cart is empty.</p>
+          <button className="btn btn-primary" onClick={() => navigate('/shop')} style={{ marginTop: '24px' }}>Go to Shop</button>
+        </div>
+      ) : (
+        <div className="cart-layout">
+          <div className="cart-items-column">
+            {cartItems.map((item, index) => (
+              <div key={index} className="cart-item glass-panel">
+                <img src={item.image} alt={item.name} />
+                <div className="cart-item-info">
+                  <h3 style={{ fontSize: '1.25rem', marginBottom: '8px' }}>{item.name}</h3>
+                  <div style={{ color: 'var(--accent)', textTransform: 'uppercase', fontSize: '0.8rem', marginBottom: '16px' }}>{item.category}</div>
+                  <div style={{ fontSize: '1.25rem', fontWeight: 700 }}>₹{item.price.toLocaleString('en-IN')}</div>
                 </div>
               </div>
             ))}
-          </div>
-        </div>
-        
-        <div className="lg:w-1/3">
-          <div className="bg-white p-6 rounded-xl shadow-md border border-gray-100 sticky top-24">
-            <h2 className="text-xl font-bold mb-6 pb-2 border-b">Order Summary</h2>
-            <div className="space-y-4 mb-6">
-              <div className="flex justify-between text-gray-600">
-                <span>Subtotal</span>
-                <span>${total.toFixed(2)}</span>
+
+            <div className="checkout-details glass-panel">
+              <h2 style={{ marginBottom: '20px' }}>Delivery Details</h2>
+              <div className="form-group">
+                <label htmlFor="customer-name">Recipient Name</label>
+                <input
+                  id="customer-name"
+                  type="text"
+                  value={customerName}
+                  onChange={(e) => setCustomerName(e.target.value)}
+                  placeholder="Enter your full name"
+                  autoComplete="name"
+                />
               </div>
-              <div className="flex justify-between text-gray-600">
-                <span>Shipping</span>
-                <span className="text-green-600 font-medium">Free</span>
-              </div>
-              <div className="flex justify-between text-xl font-bold pt-4 border-t">
-                <span>Total</span>
-                <span className="text-primary">${total.toFixed(2)}</span>
+              <div className="form-group">
+                <label htmlFor="shipping-address">Shipping Address</label>
+                <textarea
+                  id="shipping-address"
+                  value={shippingAddress}
+                  onChange={(e) => setShippingAddress(e.target.value)}
+                  placeholder="House no, street, city, state, PIN code"
+                  rows={4}
+                />
               </div>
             </div>
-            <button 
-              onClick={() => navigate('/checkout')}
-              className="w-full btn-primary py-4 rounded-xl text-lg font-bold shadow-lg"
+          </div>
+
+          <div className="cart-summary glass-panel">
+            <h2 style={{ marginBottom: '24px' }}>Order Summary</h2>
+            <div className="summary-row">
+              <span>Subtotal ({cartItems.length} items)</span>
+              <span>₹{total.toLocaleString('en-IN')}</span>
+            </div>
+            <div className="summary-row">
+              <span>Shipping</span>
+              <span>{shipping === 0 ? 'Free' : '₹500'}</span>
+            </div>
+            <div className="summary-row">
+              <span>Tax (Included)</span>
+              <span>₹0</span>
+            </div>
+
+            <div className="payment-methods">
+              <span className="payment-label">Payment Method</span>
+              <div className="payment-options">
+                {['Credit Card', 'Cash on Delivery'].map(method => (
+                  <button
+                    key={method}
+                    type="button"
+                    className={`payment-option ${paymentMethod === method ? 'active' : ''}`}
+                    onClick={() => setPaymentMethod(method)}
+                  >
+                    {method}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="summary-total">
+              <span>Total</span>
+              <span>₹{totalAmount.toLocaleString('en-IN')}</span>
+            </div>
+            <button
+              className="btn btn-primary checkout-btn"
+              onClick={handleCheckout}
+              disabled={isProcessing}
             >
-              Proceed to Checkout
+              {isProcessing ? 'Processing...' : `Checkout with ${paymentMethod}`}
             </button>
           </div>
         </div>
-      </div>
+      )}
     </div>
   );
 };

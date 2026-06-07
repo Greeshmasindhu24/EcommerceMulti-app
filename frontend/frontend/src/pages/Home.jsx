@@ -1,38 +1,29 @@
-import React, { useEffect, useState } from 'react';
-import axios from 'axios';
-import ProductCard from '../components/ProductCard';
+import React from 'react';
+import { Link } from 'react-router-dom';
 
 const Home = () => {
-  const [products, setProducts] = useState([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const fetchProducts = async () => {
-      try {
-        const { data } = await axios.get('/api/products');
-        setProducts(data);
-      } catch (error) {
-        console.error('Error fetching products', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchProducts();
-  }, []);
-
   return (
     <div>
-      <h1 className="text-3xl font-bold mb-8 text-center text-gray-800">Latest Products</h1>
-      {loading ? (
-        <div className="text-center text-xl text-gray-500">Loading products...</div>
-      ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-          {products.map(product => (
-            <ProductCard key={product._id} product={product} />
-          ))}
+      <section className="hero">
+        <div className="hero-glow"></div>
+        <div className="container">
+          <h1>Elevate Your Lifestyle<br/>With Premium Choices</h1>
+          <p>Discover our exclusive collection of high-end fashion, cutting-edge electronics, and lifestyle products curated just for you.</p>
+          <div style={{ display: 'flex', gap: '16px', justifyContent: 'center' }}>
+            <Link to="/shop" className="btn btn-primary" style={{ padding: '16px 32px', fontSize: '1.1rem' }}>Shop Now</Link>
+            <Link to="/auth" className="btn btn-outline" style={{ padding: '16px 32px', fontSize: '1.1rem' }}>Join the Club</Link>
+          </div>
         </div>
-      )}
+      </section>
+
+      <section className="container" style={{ padding: '80px 24px' }}>
+        <div className="glass-panel" style={{ padding: '60px', textAlign: 'center', background: 'rgba(108, 92, 231, 0.05)' }}>
+          <h2 style={{ fontSize: '2rem', marginBottom: '24px' }}>Powered by Multi-Agent AI</h2>
+          <p style={{ maxWidth: '600px', margin: '0 auto', color: 'var(--text-secondary)' }}>
+            Experience the future of shopping. Our intelligent agents seamlessly route your queries—whether you need sales recommendations, order tracking, or general support, we've got you covered 24/7. Try the chat widget in the bottom right corner!
+          </p>
+        </div>
+      </section>
     </div>
   );
 };

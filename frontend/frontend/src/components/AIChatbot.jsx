@@ -32,16 +32,16 @@ const AIChatbot = () => {
       const replyText = response?.reply || "Sorry, I couldn't understand that. Please try again.";
       const agentName = response?.agent || "STYLE Assistant";
       const routeLabel = response?.route ? ` [${response.route}]` : "";
-      setMessages(prev => [...prev, { 
-        text: replyText, 
-        isUser: false, 
-        agent: `${agentName}${routeLabel}` 
+      setMessages(prev => [...prev, {
+        text: replyText,
+        isUser: false,
+        agent: `${agentName}${routeLabel}`
       }]);
     } catch (error) {
-      setMessages(prev => [...prev, { 
-        text: "Sorry, I couldn't connect to the server. Please try again.", 
-        isUser: false, 
-        agent: "Error" 
+      setMessages(prev => [...prev, {
+        text: "Sorry, I couldn't connect to the server. Please try again.",
+        isUser: false,
+        agent: "Error"
       }]);
     } finally {
       setIsLoading(false);
@@ -80,11 +80,11 @@ const AIChatbot = () => {
         </div>
 
         <form className="chat-input-area" onSubmit={handleSend}>
-          <input 
-            type="text" 
+          <input
+            type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder="Ask about products, orders..." 
+            placeholder="Ask about products, orders..."
           />
           <button type="submit" disabled={isLoading}>➔</button>
         </form>

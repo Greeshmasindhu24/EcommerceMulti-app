@@ -41,15 +41,15 @@ const Auth = ({ setIsAuthenticated }) => {
         <h2 style={{ textAlign: 'center', marginBottom: '32px', fontSize: '2rem' }}>
           {isLogin ? 'Welcome Back' : 'Create Account'}
         </h2>
-        
+
         {error && <div style={{ background: 'rgba(214, 48, 49, 0.1)', color: 'var(--danger)', padding: '12px', borderRadius: '8px', marginBottom: '24px', textAlign: 'center' }}>{error}</div>}
-        
+
         <form onSubmit={handleSubmit}>
           <div className="form-group">
             <label>Email Address</label>
-            <input 
-              type="email" 
-              required 
+            <input
+              type="email"
+              required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="you@example.com"
@@ -57,9 +57,9 @@ const Auth = ({ setIsAuthenticated }) => {
           </div>
           <div className="form-group">
             <label>Password</label>
-            <input 
-              type="password" 
-              required 
+            <input
+              type="password"
+              required
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="••••••••"
@@ -72,7 +72,7 @@ const Auth = ({ setIsAuthenticated }) => {
 
         <div style={{ textAlign: 'center', marginTop: '32px', color: 'var(--text-secondary)' }}>
           {isLogin ? "Don't have an account? " : "Already have an account? "}
-          <span 
+          <span
             style={{ color: 'var(--accent)', cursor: 'pointer', fontWeight: 600 }}
             onClick={() => setIsLogin(!isLogin)}
           >

@@ -2,7 +2,7 @@ import React, { useContext, useState } from 'react';
 import { CartContext } from '../context/CartContext';
 import { AuthContext } from '../context/AuthContext';
 import { useNavigate, Navigate } from 'react-router-dom';
-import axios from 'axios';
+import { placeOrder } from '../api';
 import { CreditCard, Truck, CheckCircle } from 'lucide-react';
 
 const Checkout = () => {
@@ -12,28 +12,55 @@ const Checkout = () => {
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState('Credit/Debit Card');
+  const [fullName, setFullName] = useState(user?.name || '');
+  const [address, setAddress] = useState('');
+  const [city, setCity] = useState('');
+  const [postalCode, setPostalCode] = useState('');
 
   const total = cartItems.reduce((acc, item) => acc + item.price * item.quantity, 0);
 
   const handlePlaceOrder = async (e) => {
     e.preventDefault();
+
+    if (!fullName.trim() || !address.trim() || !city.trim() || !postalCode.trim()) {
+      alert('Please fill in your name and shipping address before place order.');
+      return;
+    }
+
     setLoading(true);
     try {
       const orderData = {
-        products: cartItems.map(item => ({
-          product: item._id,
-          quantity: item.quantity,
-          price: item.price
-        })),
-        totalAmount: total,
-        paymentMethod
+        total_amount: total,
+        items: cartItems,
+        payment_method: paymentMethod,
+        customer_name: fullName,
+        shipping_address: `${address}, ${city}, ${postalCode}`
       };
-      
-      await axios.post('/api/orders', orderData);
+
+      console.log('Placing order with data:', orderData);
+      const result = await placeOrder(orderData);
+      console.log('Order placed successfully:', result);
       setSuccess(true);
       clearCart();
     } catch (error) {
-      alert('Error placing order: ' + (error.response?.data?.message || error.message));
+      console.error('Order error:', error);
+      let errorMsg = 'Error placing order. Please try again.';
+      
+      if (error.response?.status === 401) {
+        errorMsg = 'Your session has expired. Please log in again.';
+      } else if (error.response?.data?.msg) {
+        errorMsg = error.response.data.msg;
+      } else if (error.response?.data?.error) {
+        errorMsg = error.response.data.error;
+      } else if (error.code === 'ECONNABORTED') {
+        errorMsg = 'Request timeout. Please check your internet connection and try again.';
+      } else if (error.message === 'Network Error') {
+        errorMsg = 'Network error. Please ensure the backend server is running.';
+      } else if (error.message) {
+        errorMsg = error.message;
+      }
+      
+      alert(errorMsg);
     } finally {
       setLoading(false);
     }
@@ -72,19 +99,44 @@ const Checkout = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="col-span-2">
                 <label className="block text-gray-700 mb-2">Full Name</label>
-                <input type="text" defaultValue={user.name} className="input-field" required />
+                <input
+                  type="text"
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                  className="input-field"
+                  required
+                />
               </div>
               <div className="col-span-2">
                 <label className="block text-gray-700 mb-2">Address</label>
-                <input type="text" placeholder="Street Address" className="input-field" required />
+                <input
+                  type="text"
+                  value={address}
+                  onChange={(e) => setAddress(e.target.value)}
+                  placeholder="Street Address"
+                  className="input-field"
+                  required
+                />
               </div>
               <div>
                 <label className="block text-gray-700 mb-2">City</label>
-                <input type="text" className="input-field" required />
+                <input
+                  type="text"
+                  value={city}
+                  onChange={(e) => setCity(e.target.value)}
+                  className="input-field"
+                  required
+                />
               </div>
               <div>
                 <label className="block text-gray-700 mb-2">Postal Code</label>
-                <input type="text" className="input-field" required />
+                <input
+                  type="text"
+                  value={postalCode}
+                  onChange={(e) => setPostalCode(e.target.value)}
+                  className="input-field"
+                  required
+                />
               </div>
             </div>
           </div>

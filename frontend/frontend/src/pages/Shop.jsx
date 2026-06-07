@@ -31,7 +31,7 @@ const Shop = ({ addToCart }) => {
         <h1>Our Collection</h1>
         <div style={{ display: 'flex', gap: '12px', justifyContent: 'center', marginTop: '24px' }}>
           {['all', 'mobiles', 'laptops', 'electronics', 'fashion', 'beauty', 'gaming'].map(cat => (
-            <button 
+            <button
               key={cat}
               className={`btn ${category === cat ? 'btn-primary' : 'btn-outline'}`}
               onClick={() => setCategory(cat)}

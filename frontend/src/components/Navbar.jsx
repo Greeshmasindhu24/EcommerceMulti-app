@@ -10,7 +10,11 @@ const Navbar = ({ isAuthenticated, onLogout, cartCount }) => {
       <div className="container">
         <Link to="/" className="nav-brand">STYLE<span>.</span></Link>
         <div className="nav-links">
-          <Link to="/shop" className={path === '/shop' ? 'active' : ''}>Shop</Link>
+          <Link to="/" className={path === '/' ? 'active' : ''}>Home</Link>
+          <Link to="/shop" className={path === '/shop' || path.startsWith('/products') ? 'active' : ''}>Shop</Link>
+          <Link to="/about" className={path === '/about' ? 'active' : ''}>About</Link>
+          <Link to="/contact" className={path === '/contact' ? 'active' : ''}>Contact</Link>
+          <Link to="/agent-info" className={path === '/agent-info' ? 'active' : ''}>AI Agents</Link>
           <Link to="/cart" className={path === '/cart' ? 'active' : ''}>Cart ({cartCount})</Link>
           {isAuthenticated ? (
             <>

@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import axios from "axios";
 
-const API = "http://127.0.0.1:5000";
+const API = process.env.REACT_APP_API_URL || axios.defaults.baseURL || "http://127.0.0.1:5000";
 
 export default function Checkout({ cart, setOrders, setCart }) {
     const [paymentMethod, setPaymentMethod] = useState("Credit/Debit Card");
@@ -28,14 +28,16 @@ export default function Checkout({ cart, setOrders, setCart }) {
             return;
         }
 
+        const orderData = {
+            total_amount: total,
+            items: cart,
+            payment_method: paymentMethod,
+            customer_name: customerName,
+            shipping_address: shippingAddress
+        };
+
         try {
-            await axios.post(`${API}/orders`, {
-                total_amount: total,
-                items: cart,
-                payment_method: paymentMethod,
-                customer_name: customerName,
-                shipping_address: shippingAddress
-            }, {
+            await axios.post(`${API}/orders`, orderData, {
                 headers: { Authorization: `Bearer ${token}` }
             });
 
@@ -44,8 +46,9 @@ export default function Checkout({ cart, setOrders, setCart }) {
 
             alert(`✅ Order Placed Successfully via ${paymentMethod}!`);
         } catch (err) {
-            console.error("Order failed", err);
-            alert("❌ Failed to place order: " + (err.response?.data?.msg || err.message));
+            console.error("Order failed", err.response?.data || err.message);
+            const message = err.response?.data?.msg || err.response?.data?.error || err.message;
+            alert(`❌ Failed to place order: ${message}`);
         }
     };
 

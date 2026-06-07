@@ -13,7 +13,7 @@ import ProtectedRoute from './components/ProtectedRoute';
 
 // Setup default axios config
 import axios from 'axios';
-axios.defaults.baseURL = 'http://192.168.0.103:5000';
+axios.defaults.baseURL = process.env.REACT_APP_API_URL || 'http://192.168.0.103:5000';
 
 function App() {
   return (

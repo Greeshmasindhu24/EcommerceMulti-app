@@ -395,8 +395,27 @@ a {
   outline: none;
 }
 
-.form-group input:focus {
+.form-group textarea {
+  width: 100%;
+  min-height: 110px;
+  padding: 12px 16px;
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid var(--glass-border);
+  border-radius: 8px;
+  color: white;
+  font-family: inherit;
+  outline: none;
+  resize: vertical;
+}
+
+.form-group input:focus,
+.form-group textarea:focus {
   border-color: var(--accent);
+}
+
+.form-group input::placeholder,
+.form-group textarea::placeholder {
+  color: var(--text-secondary);
 }
 
 /* Page Headers */
@@ -439,6 +458,64 @@ a {
 .cart-summary {
   padding: 32px;
   height: fit-content;
+  position: sticky;
+  top: 100px;
+}
+
+.checkout-details {
+  padding: 28px;
+  margin-top: 16px;
+}
+
+.cart-items-column {
+  min-width: 0;
+}
+
+.payment-methods {
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid var(--glass-border);
+}
+
+.payment-label {
+  display: block;
+  margin-bottom: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.payment-options {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.payment-option {
+  padding: 10px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--glass-border);
+  background: rgba(0, 0, 0, 0.2);
+  color: var(--text-primary);
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.payment-option.active {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: white;
+}
+
+.payment-note {
+  margin-top: 10px;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+}
+
+.checkout-btn {
+  width: 100%;
+  margin-top: 24px;
+  padding: 16px;
 }
 
 .summary-row {

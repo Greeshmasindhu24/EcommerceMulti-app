@@ -1,45 +1,28 @@
-import React, { useContext } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { AuthContext } from '../context/AuthContext';
-import { CartContext } from '../context/CartContext';
-import { ShoppingCart, LogOut, User } from 'lucide-react';
+import React from 'react';
+import { Link, useLocation } from 'react-router-dom';
 
-const Navbar = () => {
-  const { user, logout } = useContext(AuthContext);
-  const { cartItems } = useContext(CartContext);
-  const navigate = useNavigate();
-
-  const handleLogout = () => {
-    logout();
-    navigate('/login');
-  };
-
-  const cartCount = cartItems.reduce((acc, item) => acc + item.quantity, 0);
+const Navbar = ({ isAuthenticated, onLogout, cartCount }) => {
+  const location = useLocation();
+  const path = location.pathname;
 
   return (
-    <nav className="bg-white shadow">
-      <div className="container mx-auto px-4 py-4 flex justify-between items-center">
-        <Link to="/" className="text-2xl font-bold text-primary">E-Shop</Link>
-        <div className="flex items-center space-x-6">
-          <Link to="/cart" className="relative text-gray-600 hover:text-primary">
-            <ShoppingCart size={24} />
-            {cartCount > 0 && (
-              <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold w-5 h-5 flex items-center justify-center rounded-full">
-                {cartCount}
-              </span>
-            )}
-          </Link>
-          {user ? (
-            <div className="flex items-center space-x-4">
-              <Link to="/profile" className="flex items-center text-gray-600 hover:text-primary">
-                <User size={20} className="mr-1" /> {user.name}
-              </Link>
-              <button onClick={handleLogout} className="flex items-center text-gray-600 hover:text-red-500">
-                <LogOut size={20} />
-              </button>
-            </div>
+    <nav className="navbar">
+      <div className="container">
+        <Link to="/" className="nav-brand">STYLE<span>.</span></Link>
+        <div className="nav-links">
+          <Link to="/" className={path === '/' ? 'active' : ''}>Home</Link>
+          <Link to="/shop" className={path === '/shop' || path.startsWith('/products') ? 'active' : ''}>Shop</Link>
+          <Link to="/about" className={path === '/about' ? 'active' : ''}>About</Link>
+          <Link to="/contact" className={path === '/contact' ? 'active' : ''}>Contact</Link>
+          <Link to="/agent-info" className={path === '/agent-info' ? 'active' : ''}>AI Agents</Link>
+          <Link to="/cart" className={path === '/cart' ? 'active' : ''}>Cart ({cartCount})</Link>
+          {isAuthenticated ? (
+            <>
+              <Link to="/orders" className={path === '/orders' ? 'active' : ''}>Orders</Link>
+              <button onClick={onLogout} className="btn btn-outline" style={{ padding: '6px 16px', fontSize: '0.9rem' }}>Logout</button>
+            </>
           ) : (
-            <Link to="/login" className="btn-primary py-1 px-4 text-sm">Login</Link>
+            <Link to="/auth" className="btn btn-primary" style={{ padding: '6px 16px', fontSize: '0.9rem' }}>Login</Link>
           )}
         </div>
       </div>

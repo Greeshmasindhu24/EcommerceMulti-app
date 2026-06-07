@@ -23,7 +23,6 @@ const Cart = ({ cartItems, clearCart, isAuthenticated }) => {
 
     if (!customerName.trim() || !shippingAddress.trim()) {
       alert('Please enter your name and shipping address before checkout.');
-      setIsProcessing(false);
       return;
     }
 
@@ -36,14 +35,22 @@ const Cart = ({ cartItems, clearCart, isAuthenticated }) => {
         customer_name: customerName,
         shipping_address: shippingAddress
       };
-      
+
       const response = await placeOrder(orderData);
       setTrackingNumber(response.tracking_number || null);
       setSuccess(true);
       clearCart();
     } catch (error) {
       console.error("Checkout failed:", error);
-      const message = error.response?.data?.error || error.response?.data?.msg || error.message || "Checkout failed. Please try again.";
+      const message = error.response?.data?.msg
+        || error.response?.data?.error
+        || error.message
+        || "Checkout failed. Please try again.";
+      if (error.response?.status === 401) {
+        alert('Your session expired. Please log in again and retry checkout.');
+        navigate('/auth');
+        return;
+      }
       alert(message);
     } finally {
       setIsProcessing(false);
@@ -63,7 +70,7 @@ const Cart = ({ cartItems, clearCart, isAuthenticated }) => {
   }
 
   return (
-    <div className="container">
+    <div className="container cart-page">
       <div className="page-header">
         <h1>Your Cart</h1>
       </div>
@@ -75,7 +82,7 @@ const Cart = ({ cartItems, clearCart, isAuthenticated }) => {
         </div>
       ) : (
         <div className="cart-layout">
-          <div>
+          <div className="cart-items-column">
             {cartItems.map((item, index) => (
               <div key={index} className="cart-item glass-panel">
                 <img src={item.image} alt={item.name} />
@@ -86,6 +93,31 @@ const Cart = ({ cartItems, clearCart, isAuthenticated }) => {
                 </div>
               </div>
             ))}
+
+            <div className="checkout-details glass-panel">
+              <h2 style={{ marginBottom: '20px' }}>Delivery Details</h2>
+              <div className="form-group">
+                <label htmlFor="customer-name">Recipient Name</label>
+                <input
+                  id="customer-name"
+                  type="text"
+                  value={customerName}
+                  onChange={(e) => setCustomerName(e.target.value)}
+                  placeholder="Enter your full name"
+                  autoComplete="name"
+                />
+              </div>
+              <div className="form-group">
+                <label htmlFor="shipping-address">Shipping Address</label>
+                <textarea
+                  id="shipping-address"
+                  value={shippingAddress}
+                  onChange={(e) => setShippingAddress(e.target.value)}
+                  placeholder="House no, street, city, state, PIN code"
+                  rows={4}
+                />
+              </div>
+            </div>
           </div>
 
           <div className="cart-summary glass-panel">
@@ -102,60 +134,29 @@ const Cart = ({ cartItems, clearCart, isAuthenticated }) => {
               <span>Tax (Included)</span>
               <span>₹0</span>
             </div>
-            <div className="summary-row" style={{ flexDirection: 'column', alignItems: 'flex-start' }}>
-              <span style={{ marginBottom: '12px', fontWeight: 600 }}>Payment Method</span>
-              <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+
+            <div className="payment-methods">
+              <span className="payment-label">Payment Method</span>
+              <div className="payment-options">
                 {['Credit Card', 'Cash on Delivery'].map(method => (
                   <button
                     key={method}
                     type="button"
+                    className={`payment-option ${paymentMethod === method ? 'active' : ''}`}
                     onClick={() => setPaymentMethod(method)}
-                    style={{
-                      padding: '10px 14px',
-                      borderRadius: '999px',
-                      border: paymentMethod === method ? '2px solid #111' : '1px solid #ccc',
-                      background: paymentMethod === method ? '#111' : 'white',
-                      color: paymentMethod === method ? 'white' : 'black',
-                      cursor: 'pointer'
-                    }}
                   >
                     {method}
                   </button>
                 ))}
               </div>
-              <span style={{ marginTop: '10px', color: '#555', fontSize: '0.9rem' }}>
-                This is a dummy transaction flow. No real money will be charged.
-              </span>
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginTop: '20px' }}>
-              <div>
-                <label style={{ display: 'block', marginBottom: '8px', fontWeight: 600 }}>Recipient Name</label>
-                <input
-                  type="text"
-                  value={customerName}
-                  onChange={(e) => setCustomerName(e.target.value)}
-                  placeholder="Enter your name"
-                  style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '1px solid #ddd' }}
-                />
-              </div>
-              <div>
-                <label style={{ display: 'block', marginBottom: '8px', fontWeight: 600 }}>Shipping Address</label>
-                <textarea
-                  value={shippingAddress}
-                  onChange={(e) => setShippingAddress(e.target.value)}
-                  placeholder="Enter delivery address"
-                  rows={3}
-                  style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '1px solid #ddd' }}
-                />
-              </div>
-            </div>
+
             <div className="summary-total">
               <span>Total</span>
               <span>₹{totalAmount.toLocaleString('en-IN')}</span>
             </div>
-            <button 
-              className="btn btn-primary" 
-              style={{ width: '100%', marginTop: '32px', padding: '16px' }}
+            <button
+              className="btn btn-primary checkout-btn"
               onClick={handleCheckout}
               disabled={isProcessing}
             >
