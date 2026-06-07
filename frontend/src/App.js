@@ -7,7 +7,6 @@ import Shop from './pages/Shop';
 import Cart from './pages/Cart';
 import Auth from './pages/Auth';
 import Orders from './pages/Orders';
-import AgentInfo from './pages/AgentInfo';
 import About from './pages/About';
 import Contact from './pages/Contact';
 import ProductList from './pages/ProductList';
@@ -67,7 +66,6 @@ function App() {
         <Route path="/cart" element={<Cart cartItems={cartItems} clearCart={clearCart} isAuthenticated={isAuthenticated} />} />
         <Route path="/auth" element={<Auth setIsAuthenticated={setIsAuthenticated} />} />
         <Route path="/orders" element={<Orders isAuthenticated={isAuthenticated} />} />
-        <Route path="/agent-info" element={<AgentInfo />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
       <AIChatbot />
