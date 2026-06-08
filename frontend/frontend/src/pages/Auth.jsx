@@ -29,7 +29,13 @@ const Auth = ({ setIsAuthenticated }) => {
         navigate('/');
       }
     } catch (err) {
-      setError(err.response?.data?.msg || 'Authentication failed. Please try again.');
+      if (!err.response) {
+        setError('Cannot reach the server. Start the multi-agent backend: cd EcommerceMultiAgent/backend && python app.py');
+      } else if (err.response.status >= 500) {
+        setError('Server error — database connection may have timed out. Please try again.');
+      } else {
+        setError(err.response?.data?.msg || 'Authentication failed. Please try again.');
+      }
     } finally {
       setLoading(false);
     }

@@ -151,12 +151,58 @@ def get_pool():
     return db_pool
 
 
+def reset_pool():
+    global db_pool
+    if db_pool is not None:
+        try:
+            db_pool.closeall()
+        except Exception:
+            pass
+        db_pool = None
+
+
+def _ping_conn(conn):
+    if conn.closed:
+        return False
+    try:
+        conn.rollback()
+        with conn.cursor() as cur:
+            cur.execute("SELECT 1")
+        return True
+    except (psycopg2.OperationalError, psycopg2.InterfaceError):
+        return False
+
+
 def get_conn():
-    return get_pool().getconn()
+    last_error = None
+    for attempt in range(3):
+        try:
+            conn = get_pool().getconn()
+            if _ping_conn(conn):
+                return conn
+            release_conn(conn, discard=True)
+        except (psycopg2.OperationalError, psycopg2.InterfaceError) as exc:
+            last_error = exc
+            if attempt == 1:
+                reset_pool()
+    if last_error:
+        raise last_error
+    raise RuntimeError("Could not acquire a database connection")
 
 
-def release_conn(conn):
-    get_pool().putconn(conn)
+def release_conn(conn, discard=False):
+    if conn is None:
+        return
+    try:
+        if discard or conn.closed:
+            get_pool().putconn(conn, close=True)
+        else:
+            get_pool().putconn(conn)
+    except Exception:
+        try:
+            conn.close()
+        except Exception:
+            pass
 
 
 def execute_query(cur, query, params=None):
@@ -164,6 +210,44 @@ def execute_query(cur, query, params=None):
         params = ()
     cur.execute(query.replace('?', '%s'), params)
     return cur
+
+
+def with_db(callback, retries=2):
+    """Run a DB callback with automatic retry on stale connections."""
+    last_error = None
+    for attempt in range(retries):
+        conn = None
+        discard = False
+        try:
+            conn = get_conn()
+            cur = conn.cursor()
+            result = callback(cur, conn)
+            conn.commit()
+            return result
+        except (psycopg2.OperationalError, psycopg2.InterfaceError) as exc:
+            last_error = exc
+            discard = True
+            if conn:
+                try:
+                    conn.rollback()
+                except Exception:
+                    pass
+            if attempt < retries - 1:
+                reset_pool()
+                continue
+            raise
+        except Exception:
+            if conn:
+                try:
+                    conn.rollback()
+                except Exception:
+                    pass
+            raise
+        finally:
+            if conn:
+                release_conn(conn, discard=discard)
+    if last_error:
+        raise last_error
 
 
 # Same catalog as EcommerceSingleAgent (MyStore)
@@ -269,18 +353,19 @@ def register():
         return jsonify({"msg": "Missing email or password"}), 400
 
     hashed = generate_password_hash(password)
-    conn = get_conn()
     try:
-        cur = conn.cursor()
-        execute_query(cur, "INSERT INTO users (email, password) VALUES (?, ?)", (email, hashed))
-        conn.commit()
+        def db_work(cur, conn):
+            execute_query(cur, "INSERT INTO users (email, password) VALUES (?, ?)", (email, hashed))
+
+        with_db(db_work)
         return jsonify({"msg": "Created"}), 201
     except Exception as e:
+        err = str(e).lower()
+        if 'unique' in err or 'duplicate' in err:
+            return jsonify({"msg": "Email already registered"}), 409
         print("Register failed:", repr(e))
         traceback.print_exc()
         return jsonify({"msg": "Server error", "error": str(e)}), 500
-    finally:
-        release_conn(conn)
 
 @app.route("/login", methods=["POST"])
 def login():
@@ -290,11 +375,12 @@ def login():
     if not email or not password:
         return jsonify({"msg": "Missing email or password"}), 400
 
-    conn = get_conn()
     try:
-        cur = conn.cursor()
-        execute_query(cur, "SELECT password FROM users WHERE email=?", (email,))
-        user = cur.fetchone()
+        def db_work(cur, conn):
+            execute_query(cur, "SELECT password FROM users WHERE email=?", (email,))
+            return cur.fetchone()
+
+        user = with_db(db_work)
         if user and check_password_hash(user[0], password):
             access_token = create_access_token(identity=str(email))
             return jsonify({"access_token": access_token, "email": email}), 200
@@ -303,8 +389,6 @@ def login():
         print("Login failed:", repr(e))
         traceback.print_exc()
         return jsonify({"msg": "Server error", "error": str(e)}), 500
-    finally:
-        release_conn(conn)
 
 @app.route("/auth/verify", methods=["GET"])
 @jwt_required()

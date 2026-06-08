@@ -1,5 +1,5 @@
 import React, { createContext, useState, useEffect } from 'react';
-import axios from 'axios';
+import { loginUser, registerUser, saveAuthSession, clearAuthStorage } from '../api';
 
 export const AuthContext = createContext();
 
@@ -8,33 +8,30 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const storedUser = localStorage.getItem('user');
-    if (storedUser) {
-      const parsedUser = JSON.parse(storedUser);
-      setUser(parsedUser);
-      axios.defaults.headers.common['Authorization'] = `Bearer ${parsedUser.token}`;
+    const storedEmail = localStorage.getItem('email');
+    const storedToken = localStorage.getItem('token');
+    if (storedEmail && storedToken) {
+      setUser({ email: storedEmail, token: storedToken });
     }
     setLoading(false);
   }, []);
 
   const login = async (email, password) => {
-    const res = await axios.post('/api/auth/login', { email, password });
-    setUser(res.data);
-    localStorage.setItem('user', JSON.stringify(res.data));
-    axios.defaults.headers.common['Authorization'] = `Bearer ${res.data.token}`;
+    const data = await loginUser(email, password);
+    const session = { email: data.email || email, token: data.access_token };
+    saveAuthSession(data.access_token, session.email);
+    setUser(session);
+    localStorage.setItem('user', JSON.stringify(session));
   };
 
   const register = async (name, email, password) => {
-    const res = await axios.post('/api/auth/register', { name, email, password });
-    setUser(res.data);
-    localStorage.setItem('user', JSON.stringify(res.data));
-    axios.defaults.headers.common['Authorization'] = `Bearer ${res.data.token}`;
+    await registerUser(email, password);
+    await login(email, password);
   };
 
   const logout = () => {
     setUser(null);
-    localStorage.removeItem('user');
-    delete axios.defaults.headers.common['Authorization'];
+    clearAuthStorage();
   };
 
   return (
