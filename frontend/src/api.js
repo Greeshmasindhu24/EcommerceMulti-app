@@ -1,10 +1,41 @@
 import axios from 'axios';
 
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+/** Live frontend: https://ecommercemulti-app.onrender.com → API: https://ecommercemulti-app1.onrender.com */
+const DEFAULT_RENDER_API = 'https://ecommercemulti-app1.onrender.com';
+
+function isPrivateLanHost(hostname) {
+  return (
+    /^192\.168\.\d{1,3}\.\d{1,3}$/.test(hostname)
+    || /^10\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(hostname)
+    || /^172\.(1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3}$/.test(hostname)
+  );
+}
+
+/** Pick API base URL for laptop, phone on Wi‑Fi, or live Render deployment. */
+export function resolveApiUrl() {
+  const envUrl = (process.env.REACT_APP_API_URL || '').trim().replace(/\/$/, '');
+  const { protocol, hostname } = window.location;
+
+  if (envUrl && !envUrl.includes('localhost') && !envUrl.includes('127.0.0.1')) {
+    return envUrl;
+  }
+
+  if (hostname === 'localhost' || hostname === '127.0.0.1') {
+    return envUrl || 'http://localhost:5000';
+  }
+
+  if (isPrivateLanHost(hostname)) {
+    return `${protocol}//${hostname}:5000`;
+  }
+
+  return DEFAULT_RENDER_API;
+}
+
+export const API_URL = resolveApiUrl();
 
 const api = axios.create({
   baseURL: API_URL,
-  timeout: 10000,
+  timeout: 60000,
 });
 
 function getStoredToken() {

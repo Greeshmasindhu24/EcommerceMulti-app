@@ -48,7 +48,7 @@ Create a `.env` file in the `frontend/` directory:
 REACT_APP_API_URL=http://localhost:5000
 
 # For deployed backend on Render
-# REACT_APP_API_URL=https://ecommercemulti-2.onrender.com
+# REACT_APP_API_URL=https://ecommercemulti-app1.onrender.com
 ```
 
 ---

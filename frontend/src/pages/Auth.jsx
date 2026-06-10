@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { loginUser, registerUser, saveAuthSession } from '../api';
+import { loginUser, registerUser, saveAuthSession, API_URL } from '../api';
 
 const Auth = ({ setIsAuthenticated }) => {
   const [isLogin, setIsLogin] = useState(true);
@@ -30,7 +30,11 @@ const Auth = ({ setIsAuthenticated }) => {
       }
     } catch (err) {
       if (!err.response) {
-        setError('Cannot reach the server. Start the multi-agent backend: cd EcommerceMultiAgent/backend && python app.py');
+        setError(
+          `Cannot reach the server (${API_URL}). ` +
+          'If this is the live Render site, redeploy the frontend with REACT_APP_API_URL set to your Render backend URL. ' +
+          'First request on Render free tier can take up to 60 seconds — try again.'
+        );
       } else if (err.response.status >= 500) {
         setError('Server error — database connection may have timed out. Please try again.');
       } else {

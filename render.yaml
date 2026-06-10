@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: ecommercemulti-app1
+    runtime: python
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
+
+  # React static site — https://ecommercemulti-app.onrender.com
+  - type: web
+    name: ecommercemulti-app
+    runtime: static
+    rootDir: frontend
+    buildCommand: npm install && npm run build
+    staticPublishPath: build
+    envVars:
+      - key: REACT_APP_API_URL
+        value: https://ecommercemulti-app1.onrender.com
