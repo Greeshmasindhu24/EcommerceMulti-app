@@ -1,18 +1,24 @@
 import React from 'react';
 
 const ProductCard = ({ product, onAddToCart }) => {
+  const description = product.description || '';
+
   return (
-    <div className="product-card glass-panel">
+    <div className="product-card card">
       <img src={product.image} alt={product.name} className="product-image" />
       <div className="product-info">
         <span className="product-category">{product.category}</span>
         <h3 className="product-title">{product.name}</h3>
-        <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginBottom: '16px', flex: 1 }}>
-          {product.description.substring(0, 80)}...
-        </p>
+        {description && (
+          <p style={{ color: 'var(--aura-muted)', fontSize: '0.875rem', marginBottom: '12px', flex: 1 }}>
+            {description.length > 80 ? `${description.substring(0, 80)}...` : description}
+          </p>
+        )}
         <div className="product-footer">
           <span className="product-price">₹{product.price.toLocaleString('en-IN')}</span>
-          <button className="btn btn-primary" onClick={() => onAddToCart(product)}>Add to Cart</button>
+          <button className="btn btn-primary" style={{ padding: '8px 16px', fontSize: '0.875rem' }} onClick={() => onAddToCart(product)}>
+            Add to Cart
+          </button>
         </div>
       </div>
     </div>

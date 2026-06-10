@@ -7,6 +7,7 @@ const Shop = ({ addToCart }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [category, setCategory] = useState('all');
+  const [sortBy, setSortBy] = useState('default');
 
   useEffect(() => {
     const fetchProducts = async () => {
@@ -16,7 +17,7 @@ const Shop = ({ addToCart }) => {
         const data = await getProducts(category);
         setProducts(data);
       } catch (error) {
-        console.error("Failed to fetch products:", error);
+        console.error('Failed to fetch products:', error);
         setError('Unable to load products. Please check your backend server connection.');
       } finally {
         setLoading(false);
@@ -25,31 +26,54 @@ const Shop = ({ addToCart }) => {
     fetchProducts();
   }, [category]);
 
+  const sortedProducts = [...products].sort((a, b) => {
+    if (sortBy === 'price-low') return a.price - b.price;
+    if (sortBy === 'price-high') return b.price - a.price;
+    return 0;
+  });
+
   return (
     <div className="container">
       <div className="page-header">
-        <h1>Our Collection</h1>
-        <div style={{ display: 'flex', gap: '12px', justifyContent: 'center', marginTop: '24px' }}>
-          {['all', 'mobiles', 'laptops', 'electronics', 'fashion', 'beauty', 'gaming'].map(cat => (
-            <button 
+        <h1>All Products ({products.length})</h1>
+        <div className="filter-bar">
+          {['all', 'mobiles', 'laptops', 'electronics', 'fashion', 'beauty', 'gaming'].map((cat) => (
+            <button
               key={cat}
+              type="button"
               className={`btn ${category === cat ? 'btn-primary' : 'btn-outline'}`}
               onClick={() => setCategory(cat)}
-              style={{ textTransform: 'capitalize' }}
             >
               {cat}
             </button>
           ))}
         </div>
+        <div style={{ marginTop: '20px' }}>
+          <select
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value)}
+            style={{
+              padding: '10px 16px',
+              border: '1px solid var(--aura-border)',
+              borderRadius: '8px',
+              fontFamily: 'inherit',
+              background: 'white',
+            }}
+          >
+            <option value="default">Default Sorting</option>
+            <option value="price-low">Price: Low to High</option>
+            <option value="price-high">Price: High to Low</option>
+          </select>
+        </div>
       </div>
 
       {loading ? (
-        <div style={{ textAlign: 'center', padding: '80px' }}>Loading products...</div>
+        <div className="loading-state">Loading products...</div>
       ) : error ? (
-        <div style={{ textAlign: 'center', padding: '80px', color: 'var(--danger)' }}>{error}</div>
+        <div className="loading-state" style={{ color: 'var(--aura-danger)' }}>{error}</div>
       ) : (
         <div className="products-grid">
-          {products.map(product => (
+          {sortedProducts.map((product) => (
             <ProductCard key={product.id} product={product} onAddToCart={addToCart} />
           ))}
         </div>
