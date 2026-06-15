@@ -113,8 +113,8 @@ export const getOrders = async () => {
   return response.data;
 };
 
-export const sendChatMessage = async (message) => {
-  const response = await api.post('/chat', { message });
+export const sendChatMessage = async (message, sessionId) => {
+  const response = await api.post('/chat', { message, session_id: sessionId });
   return response.data;
 };
 

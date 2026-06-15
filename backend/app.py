@@ -19,8 +19,8 @@ from ai_helpers import (
     classify_route,
     generate_with_gemini,
     local_order_reply,
-    local_sales_reply,
     local_support_reply,
+    process_sales_message,
 )
 
 # ---------------- LOAD ENV ----------------
@@ -549,25 +549,45 @@ def get_products(category):
         release_conn(conn)
 
 # ---------------- MULTI-AGENT SYSTEM ----------------
+chat_sessions = {}
+
+
+def _get_session_context(session_id):
+    return chat_sessions.get(session_id, {"last_products": []})
+
+
+def _update_session_context(session_id, matched_products):
+    if not session_id:
+        return
+    if matched_products:
+        chat_sessions[session_id] = {"last_products": matched_products}
+
+
 def route_query(message):
     return classify_route(message)
 
 
-def sales_agent(message):
+def sales_agent(message, session_id=None):
     conn = get_conn()
     try:
         cur = conn.cursor()
         cur.execute("""
-            SELECT name, price, category, description, COALESCE(rating, 4.5) AS rating
+            SELECT id, name, price, image, category, description, COALESCE(rating, 4.5) AS rating
             FROM products ORDER BY category, name
         """)
         products = cur.fetchall()
     finally:
         release_conn(conn)
 
-    reply = local_sales_reply(message, products)
-    print("Sales agent: database-backed reply")
-    return "Sales Expert", reply
+    session = _get_session_context(session_id)
+    last_products = session.get("last_products", [])
+    result = process_sales_message(message, products, last_products)
+
+    if result.get("matched_products"):
+        _update_session_context(session_id, result["matched_products"])
+
+    print(f"Sales agent: intent={result.get('intent')} | products={len(result.get('matched_products', []))}")
+    return "Sales Expert", result
 
 
 def support_agent(message):
@@ -599,7 +619,10 @@ def order_agent(message, user_email):
 
 @app.route("/chat", methods=["POST"])
 def multi_agent_chat():
-    user_msg = request.json.get("message")
+    payload = request.json or {}
+    user_msg = payload.get("message")
+    session_id = payload.get("session_id") or request.headers.get("X-Session-Id") or "default"
+
     if not user_msg:
         return jsonify({"msg": "No message provided"}), 400
 
@@ -610,13 +633,21 @@ def multi_agent_chat():
     except Exception:
         pass
         
-    print(f"Chat request received: {user_msg} | User: {user_email}")
+    print(f"Chat request received: {user_msg} | User: {user_email} | Session: {session_id}")
     
     route = route_query(user_msg)
     print(f"Router decided route: {route}")
     
+    intent = None
+    actions = []
+    products = []
+
     if route == "SALES":
-        agent_name, reply = sales_agent(user_msg)
+        agent_name, sales_result = sales_agent(user_msg, session_id)
+        reply = sales_result["reply"]
+        intent = sales_result.get("intent")
+        actions = sales_result.get("actions", [])
+        products = sales_result.get("matched_products", [])
     elif route == "ORDER":
         agent_name, reply = order_agent(user_msg, user_email)
     else:
@@ -625,7 +656,10 @@ def multi_agent_chat():
     return jsonify({
         "agent": agent_name,
         "route": route,
-        "reply": reply
+        "intent": intent,
+        "reply": reply,
+        "actions": actions,
+        "products": products,
     })
 
 if __name__ == "__main__":

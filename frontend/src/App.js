@@ -14,6 +14,7 @@ function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [authChecked, setAuthChecked] = useState(false);
   const [cartItems, setCartItems] = useState([]);
+  const [wishlistItems, setWishlistItems] = useState([]);
 
   useEffect(() => {
     const checkSession = async () => {
@@ -37,6 +38,15 @@ function App() {
 
   const addToCart = (product) => {
     setCartItems((prev) => [...prev, product]);
+  };
+
+  const addToWishlist = (product) => {
+    setWishlistItems((prev) => {
+      if (prev.some((item) => item.id === product.id)) {
+        return prev;
+      }
+      return [...prev, product];
+    });
   };
 
   const clearCart = () => {
@@ -83,7 +93,7 @@ function App() {
           </div>
         </footer>
 
-        <AIChatbot />
+        <AIChatbot onAddToCart={addToCart} onAddToWishlist={addToWishlist} />
       </div>
     </Router>
   );

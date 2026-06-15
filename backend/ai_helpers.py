@@ -1,5 +1,32 @@
 import re
 
+INTENT_PRODUCT_SEARCH = "PRODUCT_SEARCH"
+INTENT_PRODUCT_DETAILS = "PRODUCT_DETAILS"
+INTENT_ADD_TO_CART = "ADD_TO_CART"
+INTENT_ADD_ALL_TO_CART = "ADD_ALL_TO_CART"
+INTENT_ADD_TO_WISHLIST = "ADD_TO_WISHLIST"
+INTENT_BUY_NOW = "BUY_NOW"
+INTENT_GENERAL = "GENERAL"
+
+CATALOG_LIST_KEYWORDS = [
+    "all products", "full catalog", "everything you sell", "what do you sell",
+    "what do you have", "entire catalog", "complete list",
+]
+CATALOG_LIST_SHORT = ["all", "list", "catalog", "everything"]
+
+SEARCH_KEYWORDS = [
+    "show", "find", "search", "look for", "recommend", "suggest", "available",
+    "have any", "do you have", "do you sell", "price", "cost", "cheap", "best",
+    "top rated", "under", "below", "budget",
+]
+
+STOP_WORDS = {
+    "show", "me", "the", "a", "an", "this", "that", "please", "want", "need",
+    "some", "any", "for", "my", "your", "our", "can", "you", "what", "which",
+    "how", "much", "is", "are", "do", "does", "have", "get", "give", "tell",
+    "about", "product", "products", "item", "items", "buy", "shop", "store",
+}
+
 GEMINI_MODELS = [
     "gemini-2.5-flash",
     "gemini-2.0-flash",
@@ -82,13 +109,115 @@ def classify_route(message):
     return "SALES"
 
 
+def row_to_product_dict(row):
+    """Row: id, name, price, image, category, description, rating"""
+    return {
+        "id": row[0],
+        "name": row[1],
+        "price": float(row[2]),
+        "image": row[3],
+        "category": row[4],
+        "description": row[5],
+        "rating": float(row[6]) if len(row) > 6 and row[6] is not None else 4.5,
+    }
+
+
 def _format_products(products, limit=10):
     lines = []
     for row in products[:limit]:
-        name, price, category, description = row[0], row[1], row[2], row[3]
-        rating = float(row[4]) if len(row) > 4 and row[4] is not None else 4.5
+        name, price, category, description = row[1], row[2], row[4], row[5]
+        rating = float(row[6]) if len(row) > 6 and row[6] is not None else 4.5
         lines.append(f"- {name} — ₹{float(price):,.0f} ({category}, ★{rating:.1f})\n  {description}")
     return "\n".join(lines)
+
+
+def detect_sales_intent(message):
+    msg = message.lower().strip()
+
+    if re.search(
+        r"add\s+(?:all|them\s+all|all\s+of\s+(?:them|these|those)|everything)\s+(?:to\s+)?(?:my\s+)?cart",
+        msg,
+    ):
+        return INTENT_ADD_ALL_TO_CART
+
+    if re.search(r"add\s+(?:to|into)\s+(?:my\s+)?wishlist", msg) or re.search(
+        r"add\s+.+\s+to\s+(?:my\s+)?wishlist", msg
+    ):
+        return INTENT_ADD_TO_WISHLIST
+
+    if re.search(r"\bbuy\s+now\b", msg) or re.search(r"\bbuy\s+this\b", msg):
+        return INTENT_BUY_NOW
+
+    if re.search(r"add\s+(?:to|into)\s+(?:my\s+)?cart\b", msg) or re.search(
+        r"add\s+.+\s+to\s+(?:my\s+)?cart", msg
+    ):
+        return INTENT_ADD_TO_CART
+
+    if re.search(r"(details|info|about|tell me about|describe|specifications?|specs)", msg):
+        return INTENT_PRODUCT_DETAILS
+
+    if _is_product_query(msg):
+        return INTENT_PRODUCT_SEARCH
+
+    return INTENT_GENERAL
+
+
+def _is_product_query(msg):
+    if _extract_price_limit(msg) is not None:
+        return True
+    if any(k in msg for k in SEARCH_KEYWORDS):
+        return True
+    if any(k in msg for k in CATALOG_LIST_KEYWORDS):
+        return True
+    if any(k in msg for k in CATALOG_LIST_SHORT) and "cart" not in msg and "wishlist" not in msg:
+        return True
+    if any(alias in msg for alias in PRODUCT_ALIASES):
+        return True
+    if any(kw in msg for cats in CATEGORY_KEYWORDS.values() for kw in cats):
+        return True
+    tokens = [t for t in re.findall(r"[a-z0-9]+", msg) if len(t) > 2 and t not in STOP_WORDS]
+    return bool(tokens)
+
+
+def _wants_full_catalog(msg):
+    if any(k in msg for k in CATALOG_LIST_KEYWORDS):
+        return True
+    if any(k in msg for k in CATALOG_LIST_SHORT) and "cart" not in msg and "wishlist" not in msg:
+        return True
+    return False
+
+
+def _extract_product_query(message, intent):
+    msg = message.lower().strip()
+
+    if intent == INTENT_ADD_ALL_TO_CART:
+        return ""
+
+    match = re.search(r"add\s+(.+?)\s+to\s+(?:my\s+)?(?:cart|wishlist)", msg)
+    if match:
+        return match.group(1).strip()
+
+    match = re.search(r"(?:buy\s+now|buy)\s+(.+)", msg)
+    if match:
+        return match.group(1).strip()
+
+    for pattern in [
+        r"add\s+(?:to|into)\s+(?:my\s+)?cart",
+        r"add\s+(?:to|into)\s+(?:my\s+)?wishlist",
+        r"add\s+(?:this|that)\s+(?:product\s+)?(?:to\s+)?(?:cart|wishlist)",
+        r"\bbuy\s+now\b",
+        r"\bbuy\s+this\b",
+    ]:
+        msg = re.sub(pattern, " ", msg)
+
+    return " ".join(msg.split()).strip()
+
+
+def _meaningful_tokens(message):
+    return [
+        t for t in re.findall(r"[a-z0-9]+", message.lower())
+        if len(t) > 2 and t not in STOP_WORDS
+    ]
 
 
 def _extract_price_limit(message):
@@ -107,79 +236,272 @@ def _extract_price_limit(message):
 
 def _filter_products(message, products):
     msg = message.lower()
-    matched = list(products)
 
-    for alias, product_name in PRODUCT_ALIASES.items():
-        if alias in msg:
-            alias_matches = [p for p in products if p[0] == product_name]
-            if alias_matches:
-                return alias_matches
+    if _wants_full_catalog(msg):
+        matched = list(products)
+    else:
+        matched = []
+        tokens = _meaningful_tokens(msg)
 
-    name_matches = [
-        p for p in products
-        if any(part in p[0].lower() for part in msg.split() if len(part) > 2)
-    ]
-    if name_matches:
-        matched = name_matches
+        for alias, product_name in PRODUCT_ALIASES.items():
+            if alias in msg:
+                alias_matches = [p for p in products if p[1] == product_name]
+                if alias_matches:
+                    matched = alias_matches
+                    break
 
-    for category, keywords in CATEGORY_KEYWORDS.items():
-        if any(keyword in msg for keyword in keywords):
-            category_matches = [p for p in products if p[2] == category]
-            if category_matches:
-                matched = category_matches
-            break
+        if not matched and tokens:
+            name_matches = [
+                p for p in products
+                if any(token in p[1].lower() for token in tokens)
+            ]
+            if name_matches:
+                matched = name_matches
+
+        if not matched:
+            for category, keywords in CATEGORY_KEYWORDS.items():
+                if any(keyword in msg for keyword in keywords):
+                    category_matches = [p for p in products if p[4] == category]
+                    if category_matches:
+                        matched = category_matches
+                    break
+
+        if not matched and tokens:
+            desc_matches = [
+                p for p in products
+                if any(token in (p[5] or "").lower() for token in tokens)
+            ]
+            if desc_matches:
+                matched = desc_matches
 
     price_limit = _extract_price_limit(message)
     if price_limit is not None:
-        matched = [p for p in matched if float(p[1]) <= price_limit]
+        matched = [p for p in matched if float(p[2]) <= price_limit]
 
     if any(k in msg for k in ["cheapest", "lowest price", "affordable", "budget"]):
-        matched = sorted(matched, key=lambda p: float(p[1]))
+        matched = sorted(matched, key=lambda p: float(p[2]))
 
     if any(k in msg for k in ["best", "top rated", "recommend", "popular"]):
         matched = sorted(
             matched,
-            key=lambda p: float(p[4]) if len(p) > 4 and p[4] is not None else 4.5,
+            key=lambda p: float(p[6]) if len(p) > 6 and p[6] is not None else 4.5,
             reverse=True,
         )
 
     return matched
 
 
-def local_sales_reply(message, products):
-    if not products:
-        return "Our catalog is being updated. Please check the Shop page shortly."
+def _suggest_similar_products(message, products, limit=3):
+    tokens = _meaningful_tokens(message)
+    if not tokens:
+        return sorted(
+            products,
+            key=lambda p: float(p[6]) if len(p) > 6 and p[6] is not None else 4.5,
+            reverse=True,
+        )[:limit]
 
-    matched = _filter_products(message, products)
-    msg = message.lower()
+    scored = []
+    for product in products:
+        haystack = f"{product[1]} {product[4]} {product[5] or ''}".lower()
+        score = sum(1 for token in tokens if token in haystack)
+        if score:
+            scored.append((score, product))
+
+    if not scored:
+        return sorted(
+            products,
+            key=lambda p: float(p[6]) if len(p) > 6 and p[6] is not None else 4.5,
+            reverse=True,
+        )[:limit]
+
+    scored.sort(key=lambda item: item[0], reverse=True)
+    return [product for _, product in scored[:limit]]
+
+
+def _format_product_details(row):
+    rating = float(row[6]) if len(row) > 6 and row[6] is not None else 4.5
+    return (
+        f"**{row[1]}**\n"
+        f"Price: ₹{float(row[2]):,.0f}\n"
+        f"Category: {row[4]}\n"
+        f"Rating: ★{rating:.1f}\n"
+        f"Details: {row[5]}\n\n"
+        "Say 'add to cart', 'add to wishlist', or 'buy now' to act on this product."
+    )
+
+
+def _no_products_reply(message, products):
+    suggestions = _suggest_similar_products(message, products)
+    reply = "No products found for your request."
+    if suggestions:
+        reply += "\n\nYou might like these items from our store:\n\n" + _format_products(suggestions)
+        reply += "\n\nTry searching for another item, e.g. 'show mobiles' or 'gaming products'."
+    else:
+        reply += "\n\nTry searching for another item or browse our categories on the Shop page."
+    return reply
+
+
+def _resolve_action_targets(intent, message, products, last_products):
+    if intent == INTENT_ADD_ALL_TO_CART:
+        if not last_products:
+            return []
+        return [_normalize_product(item) for item in last_products]
+
+    query = _extract_product_query(message, intent)
+    if query:
+        matched = _filter_products(query, products)
+        if matched:
+            return [row_to_product_dict(row) for row in matched]
+
+    if len(last_products) == 1:
+        return [_normalize_product(last_products[0])]
+
+    if last_products and intent in (INTENT_ADD_TO_CART, INTENT_ADD_TO_WISHLIST, INTENT_BUY_NOW):
+        if re.search(r"\b(this|that|it)\b", message.lower()):
+            return [_normalize_product(last_products[0])]
+
+    return []
+
+
+def _normalize_product(item):
+    if isinstance(item, dict):
+        return item
+    return row_to_product_dict(item)
+
+
+def _build_action(intent, products):
+    action_type = {
+        INTENT_ADD_TO_CART: "ADD_TO_CART",
+        INTENT_ADD_ALL_TO_CART: "ADD_ALL_TO_CART",
+        INTENT_ADD_TO_WISHLIST: "ADD_TO_WISHLIST",
+        INTENT_BUY_NOW: "BUY_NOW",
+    }[intent]
+    product_dicts = [_normalize_product(product) for product in products]
+    return {"type": action_type, "products": product_dicts}
+
+
+def _action_confirmation(intent, products):
+    count = len(products)
+    names = ", ".join(p["name"] for p in products[:3])
+    if count > 3:
+        names += f", and {count - 3} more"
+
+    if intent == INTENT_ADD_ALL_TO_CART:
+        return f"Added {count} product(s) to your cart: {names}."
+    if intent == INTENT_ADD_TO_CART:
+        return f"Added {names} to your cart." if count == 1 else f"Added {count} products to your cart: {names}."
+    if intent == INTENT_ADD_TO_WISHLIST:
+        return f"Added {names} to your wishlist." if count == 1 else f"Added {count} products to your wishlist: {names}."
+    if intent == INTENT_BUY_NOW:
+        return f"Ready to checkout with {names}. Opening your cart now."
+    return ""
+
+
+def process_sales_message(message, products, last_products=None):
+    last_products = last_products or []
+
+    if not products:
+        return {
+            "reply": "Our catalog is being updated. Please check the Shop page shortly.",
+            "intent": INTENT_GENERAL,
+            "actions": [],
+            "matched_products": [],
+        }
+
+    intent = detect_sales_intent(message)
+
+    if intent in (INTENT_ADD_TO_CART, INTENT_ADD_ALL_TO_CART, INTENT_ADD_TO_WISHLIST, INTENT_BUY_NOW):
+        targets = _resolve_action_targets(intent, message, products, last_products)
+        if not targets:
+            if intent == INTENT_ADD_ALL_TO_CART:
+                reply = (
+                    "I don't have a recent product list to add. "
+                    "Search for products first (e.g. 'show laptops'), then say 'add all to cart'."
+                )
+            else:
+                reply = (
+                    "I couldn't identify which product to use. "
+                    "Search for a product first or specify it, e.g. 'add iPhone to cart'."
+                )
+            return {"reply": reply, "intent": intent, "actions": [], "matched_products": []}
+
+        action = _build_action(intent, targets)
+        return {
+            "reply": _action_confirmation(intent, targets),
+            "intent": intent,
+            "actions": [action],
+            "matched_products": targets,
+        }
+
+    search_message = message
+    if intent in (INTENT_PRODUCT_SEARCH, INTENT_PRODUCT_DETAILS):
+        search_message = _extract_product_query(message, intent) or message
+
+    matched = _filter_products(search_message, products)
+
+    if not matched and intent in (INTENT_PRODUCT_SEARCH, INTENT_PRODUCT_DETAILS):
+        return {
+            "reply": _no_products_reply(search_message, products),
+            "intent": intent,
+            "actions": [],
+            "matched_products": [],
+        }
+
+    if intent == INTENT_PRODUCT_DETAILS and matched:
+        if len(matched) == 1:
+            return {
+                "reply": _format_product_details(matched[0]),
+                "intent": INTENT_PRODUCT_DETAILS,
+                "actions": [],
+                "matched_products": [row_to_product_dict(matched[0])],
+            }
+        return {
+            "reply": (
+                f"I found {len(matched)} matching products:\n\n"
+                + _format_products(matched)
+                + "\n\nAsk about a specific product for full details."
+            ),
+            "intent": INTENT_PRODUCT_SEARCH,
+            "actions": [],
+            "matched_products": [row_to_product_dict(row) for row in matched],
+        }
 
     if matched:
         if len(matched) == 1:
-            p = matched[0]
-            rating = float(p[4]) if len(p) > 4 and p[4] is not None else 4.5
-            return (
-                f"**{p[0]}**\n"
-                f"Price: ₹{float(p[1]):,.0f}\n"
-                f"Category: {p[2]}\n"
-                f"Rating: ★{rating:.1f}\n"
-                f"Details: {p[3]}\n\n"
-                "Add it to cart from the Shop page!"
-            )
+            return {
+                "reply": _format_product_details(matched[0]),
+                "intent": INTENT_PRODUCT_DETAILS,
+                "actions": [],
+                "matched_products": [row_to_product_dict(matched[0])],
+            }
 
         heading = f"I found {len(matched)} matching product(s) in our store:"
-        if any(k in msg for k in ["all", "list", "catalog", "everything", "what do you sell"]):
+        if _wants_full_catalog(message.lower()):
             heading = "Here is our full STYLE catalog:"
-        return (
-            f"{heading}\n\n"
-            + _format_products(matched)
-            + "\n\nOpen the Shop page to buy, or ask e.g. 'iPhone price' or 'laptops under ₹150000'."
-        )
+        return {
+            "reply": (
+                f"{heading}\n\n"
+                + _format_products(matched)
+                + "\n\nSay 'add all to cart', 'add [product] to cart', or 'buy now' to purchase."
+            ),
+            "intent": INTENT_PRODUCT_SEARCH,
+            "actions": [],
+            "matched_products": [row_to_product_dict(row) for row in matched],
+        }
 
-    return (
-        "I couldn't find an exact match. Here are all products we currently sell:\n\n"
-        + _format_products(products)
-        + "\n\nTry: 'show mobiles', 'gaming products', 'cheapest item', or 'laptops under ₹150000'."
-    )
+    return {
+        "reply": (
+            "Hi! I'm your STYLE shopping assistant. "
+            "Ask me to search products, e.g. 'show mobiles', 'iPhone price', or 'laptops under ₹150000'."
+        ),
+        "intent": INTENT_GENERAL,
+        "actions": [],
+        "matched_products": [],
+    }
+
+
+def local_sales_reply(message, products, last_products=None):
+    return process_sales_message(message, products, last_products)["reply"]
 
 
 def local_support_reply(message):

@@ -1,11 +1,25 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { sendChatMessage } from '../api';
 
-const AIChatbot = () => {
+const CHAT_SESSION_KEY = 'style_chat_session_id';
+
+function getOrCreateSessionId() {
+  let sessionId = sessionStorage.getItem(CHAT_SESSION_KEY);
+  if (!sessionId) {
+    sessionId = `chat-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+    sessionStorage.setItem(CHAT_SESSION_KEY, sessionId);
+  }
+  return sessionId;
+}
+
+const AIChatbot = ({ onAddToCart, onAddToWishlist }) => {
+  const navigate = useNavigate();
+  const [sessionId] = useState(getOrCreateSessionId);
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState([
     {
-      text: "Hi! I'm the Style Multi-Agent assistant. I answer using our live product catalog and your orders (when logged in). Try: 'show all products', 'iPhone price', or 'return policy'.",
+      text: "Hi! I'm the Style Multi-Agent assistant. I only recommend products from our live catalog. Try: 'show mobiles', 'iPhone price', or 'add all to cart' after a search.",
       isUser: false,
       agent: 'System',
     },
@@ -22,6 +36,28 @@ const AIChatbot = () => {
     scrollToBottom();
   }, [messages, isOpen]);
 
+  const executeChatActions = useCallback((actions) => {
+    if (!actions?.length) return;
+
+    actions.forEach((action) => {
+      const products = action.products || [];
+      if (!products.length) return;
+
+      if (action.type === 'ADD_TO_CART' || action.type === 'ADD_ALL_TO_CART') {
+        products.forEach((product) => onAddToCart?.(product));
+      }
+
+      if (action.type === 'ADD_TO_WISHLIST') {
+        products.forEach((product) => onAddToWishlist?.(product));
+      }
+
+      if (action.type === 'BUY_NOW') {
+        products.forEach((product) => onAddToCart?.(product));
+        navigate('/cart');
+      }
+    });
+  }, [navigate, onAddToCart, onAddToWishlist]);
+
   const handleSend = async (e) => {
     e.preventDefault();
     if (!input.trim()) return;
@@ -32,16 +68,20 @@ const AIChatbot = () => {
     setIsLoading(true);
 
     try {
-      const response = await sendChatMessage(userMsg);
+      const response = await sendChatMessage(userMsg, sessionId);
       const replyText = response?.reply || "Sorry, I couldn't understand that. Please try again.";
       const agentName = response?.agent || 'Style Assistant';
       const routeLabel = response?.route ? ` [${response.route}]` : '';
+      const intentLabel = response?.intent ? ` · ${response.intent}` : '';
+
+      executeChatActions(response?.actions);
+
       setMessages((prev) => [
         ...prev,
         {
           text: replyText,
           isUser: false,
-          agent: `${agentName}${routeLabel}`,
+          agent: `${agentName}${routeLabel}${intentLabel}`,
         },
       ]);
     } catch {
@@ -77,7 +117,7 @@ const AIChatbot = () => {
           {messages.map((msg, index) => (
             <div key={index} className={`message ${msg.isUser ? 'user' : 'bot'}`}>
               {!msg.isUser && <div className="agent-name">{msg.agent}</div>}
-              <div>{msg.text}</div>
+              <div style={{ whiteSpace: 'pre-wrap' }}>{msg.text}</div>
             </div>
           ))}
           {isLoading && (
@@ -94,7 +134,7 @@ const AIChatbot = () => {
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder="Ask about products, orders..."
+            placeholder="Search products, add to cart..."
           />
           <button type="submit" disabled={isLoading}>➔</button>
         </form>
