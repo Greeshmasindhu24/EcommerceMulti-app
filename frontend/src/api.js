@@ -113,8 +113,8 @@ export const getOrders = async () => {
   return response.data;
 };
 
-export const sendChatMessage = async (message, sessionId) => {
-  const response = await api.post('/chat', { message, session_id: sessionId });
+export const sendChatMessage = async (message, lastSeenProducts = []) => {
+  const response = await api.post('/chat', { message, last_seen_products: lastSeenProducts });
   return response.data;
 };
 

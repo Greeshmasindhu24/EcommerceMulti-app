@@ -19,8 +19,9 @@ from ai_helpers import (
     classify_route,
     generate_with_gemini,
     local_order_reply,
+    local_sales_reply,
     local_support_reply,
-    process_sales_message,
+    process_sales_query,
 )
 
 # ---------------- LOAD ENV ----------------
@@ -548,26 +549,11 @@ def get_products(category):
     finally:
         release_conn(conn)
 
-# ---------------- MULTI-AGENT SYSTEM ----------------
-chat_sessions = {}
-
-
-def _get_session_context(session_id):
-    return chat_sessions.get(session_id, {"last_products": []})
-
-
-def _update_session_context(session_id, matched_products):
-    if not session_id:
-        return
-    if matched_products:
-        chat_sessions[session_id] = {"last_products": matched_products}
-
-
 def route_query(message):
     return classify_route(message)
 
 
-def sales_agent(message, session_id=None):
+def sales_agent(message, last_seen_products=None):
     conn = get_conn()
     try:
         cur = conn.cursor()
@@ -579,14 +565,21 @@ def sales_agent(message, session_id=None):
     finally:
         release_conn(conn)
 
-    session = _get_session_context(session_id)
-    last_products = session.get("last_products", [])
-    result = process_sales_message(message, products, last_products)
+    product_dicts = []
+    for r in products:
+        product_dicts.append({
+            "id": r[0],
+            "name": r[1],
+            "price": float(r[2]) if r[2] is not None else 0.0,
+            "image": r[3],
+            "category": r[4],
+            "description": r[5],
+            "rating": float(r[6]) if r[6] is not None else 4.5
+        })
 
-    if result.get("matched_products"):
-        _update_session_context(session_id, result["matched_products"])
-
-    print(f"Sales agent: intent={result.get('intent')} | products={len(result.get('matched_products', []))}")
+    client = get_ai_client()
+    result = process_sales_query(client, message, product_dicts, last_seen_products)
+    print("Sales agent: database-backed reply with process_sales_query")
     return "Sales Expert", result
 
 
@@ -619,10 +612,8 @@ def order_agent(message, user_email):
 
 @app.route("/chat", methods=["POST"])
 def multi_agent_chat():
-    payload = request.json or {}
-    user_msg = payload.get("message")
-    session_id = payload.get("session_id") or request.headers.get("X-Session-Id") or "default"
-
+    user_msg = request.json.get("message")
+    last_seen_products = request.json.get("last_seen_products")
     if not user_msg:
         return jsonify({"msg": "No message provided"}), 400
 
@@ -633,21 +624,21 @@ def multi_agent_chat():
     except Exception:
         pass
         
-    print(f"Chat request received: {user_msg} | User: {user_email} | Session: {session_id}")
+    print(f"Chat request received: {user_msg} | User: {user_email}")
     
     route = route_query(user_msg)
     print(f"Router decided route: {route}")
     
-    intent = None
-    actions = []
-    products = []
-
+    action = None
+    products = None
     if route == "SALES":
-        agent_name, sales_result = sales_agent(user_msg, session_id)
-        reply = sales_result["reply"]
-        intent = sales_result.get("intent")
-        actions = sales_result.get("actions", [])
-        products = sales_result.get("matched_products", [])
+        agent_name, agent_res = sales_agent(user_msg, last_seen_products)
+        if isinstance(agent_res, dict):
+            reply = agent_res.get("reply")
+            action = agent_res.get("action")
+            products = agent_res.get("products")
+        else:
+            reply = agent_res
     elif route == "ORDER":
         agent_name, reply = order_agent(user_msg, user_email)
     else:
@@ -656,12 +647,10 @@ def multi_agent_chat():
     return jsonify({
         "agent": agent_name,
         "route": route,
-        "intent": intent,
         "reply": reply,
-        "actions": actions,
-        "products": products,
+        "action": action,
+        "products": products
     })
-
 if __name__ == "__main__":
     # host=0.0.0.0 allows phones/other devices on the same Wi‑Fi to reach this API
     app.run(host="0.0.0.0", port=5000, debug=True)
